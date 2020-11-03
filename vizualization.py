@@ -95,7 +95,7 @@ class VisOpen3D:
     def capture_depth_image(self, filename):
         self.__vis.capture_depth_image(filename, do_render=True)
 
-        # read the saved depth image file use:
+        # to read the saved depth image file use:
         # depth = open3d.io.read_image(filename)
         # plt.imshow(depth)
         # plt.show()
@@ -104,7 +104,7 @@ class VisOpen3D:
         # intrinsics
         K = intrinsic
 
-        # extrinsics (inverse) to rotation and translation matrix
+        # convert extrinsics matrix to rotation and translation matrix
         extrinsic = np.linalg.inv(extrinsic)
         R = extrinsic[0:3,0:3]
         t = extrinsic[0:3,3]
@@ -132,7 +132,7 @@ def draw_camera(K, R, t, width, height, scale=1, color=None):
     :   return      : camera model geometries (axis, plane and pyramid)
     """
 
-    # let's not use list as a default argument
+    # default color
     if color is None:
         color = [0.8, 0.2, 0.8]
 
@@ -167,9 +167,7 @@ def draw_camera(K, R, t, width, height, scale=1, color=None):
     # image plane
     width = abs(points[1][0]) + abs(points[3][0])
     height = abs(points[1][1]) + abs(points[3][1])
-    plane = open3d.geometry.TriangleMesh.create_box(width,
-                                                    height,
-                                                    depth=0.001)
+    plane = open3d.geometry.TriangleMesh.create_box(width, height, depth=1e-6)
     plane.paint_uniform_color(color)
     plane.transform(T)
     plane.translate(R @ [points[1][0], points[1][1], scale])

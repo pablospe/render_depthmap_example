@@ -1,5 +1,8 @@
 # open3D_depthmap_example
 
+This is an example of the Open3D PR:
+https://github.com/intel-isl/Open3D/pull/2564
+
 ## How to run the example?
 
     # creat environment
