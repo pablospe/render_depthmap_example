@@ -1,5 +1,5 @@
 import open3d
-from vizualization import VisOpen3D
+from visualization import VisOpen3D
 
 
 def main():
@@ -9,7 +9,7 @@ def main():
     pcd = open3d.io.read_point_cloud("fragment.ply")
 
     # create window
-    window_visible = False
+    window_visible = True
     vis = VisOpen3D(width=w, height=h, visible=window_visible)
 
     # point cloud

@@ -38,7 +38,7 @@ class VisOpen3D:
     def update_view_point(self, intrinsic, extrinsic):
         ctr = self.__vis.get_view_control()
         param = self.convert_to_open3d_param(intrinsic, extrinsic)
-        ctr.convert_from_arbitrary_pinhole_camera_parameters(param)
+        ctr.convert_from_pinhole_camera_parameters(param, allow_arbitrary=True)
         self.__vis.update_renderer()
 
     def get_view_point_intrinsics(self):
