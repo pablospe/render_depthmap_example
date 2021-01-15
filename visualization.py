@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 class VisOpen3D:
 
-    def __init__(self, width, height, visible=True):
+    def __init__(self, width=1920, height=1080, visible=True):
         self.__vis = open3d.visualization.Visualizer()
         self.__vis.create_window(width=width, height=height, visible=visible)
         self.__width = width
@@ -32,6 +32,9 @@ class VisOpen3D:
     def run(self):
         self.__vis.run()
 
+    def destroy_window(self):
+        self.__vis.destroy_window()
+
     def add_geometry(self, data):
         self.__vis.add_geometry(data)
 
@@ -52,6 +55,9 @@ class VisOpen3D:
         param = ctr.convert_to_pinhole_camera_parameters()
         extrinsic = param.extrinsic
         return extrinsic
+
+    def get_view_control(self):
+        return self.__vis.get_view_control()
 
     def save_view_point(self, filename):
         ctr = self.__vis.get_view_control()
@@ -116,6 +122,10 @@ class VisOpen3D:
         for g in geometries:
             self.add_geometry(g)
 
+    def draw_points3D(self, points3D, color=None):
+        geometries = draw_points3D(points3D, color)
+        for g in geometries:
+            self.add_geometry(g)
 
 #
 # Auxiliary funcions
@@ -194,3 +204,19 @@ def create_coordinate_frame(T, scale=0.25):
     frame = open3d.geometry.TriangleMesh.create_coordinate_frame(size=scale)
     frame.transform(T)
     return frame
+
+
+def draw_points3D(points3D, color=None):
+    # color: default value
+    if color is None:
+        color = [0.8, 0.2, 0.8]
+
+    geometries = []
+    for pt in points3D:
+        sphere = open3d.geometry.TriangleMesh.create_sphere(radius=0.01,
+                                                            resolution=20)
+        sphere.translate(pt)
+        sphere.paint_uniform_color(np.array(color))
+        geometries.append(sphere)
+
+    return geometries
