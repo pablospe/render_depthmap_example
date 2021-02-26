@@ -50,6 +50,7 @@ def main():
 
     # render image
     img = render.render_to_image()
+    img = render.render_to_depth_image()
     o3d.io.write_image(FILENAME, img, 9)
 
     # plot image
