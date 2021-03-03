@@ -1,3 +1,6 @@
+import open3d
+from visualization import VisOpen3D
+
 import pyvista as pv
 import vtk
 import math
@@ -13,6 +16,7 @@ def trans_to_matrix(trans):
             matrix.SetElement(i, j, trans[i, j])
     return matrix
 
+
 def main():
     w = 1024
     h = 768
@@ -26,10 +30,8 @@ def main():
                           [ 0.28602154,  0.10613772,  0.95232687,  0.6428006 ],
                           [ 0.        ,  0.        ,  0.        ,  1.        ]])
 
-
     # renderer
     p = pv.Plotter(off_screen=True)
-
 
     #
     # load mesh or point cloud
@@ -41,7 +43,6 @@ def main():
     p.add_mesh(mesh, rgb=True)
             #    render_points_as_spheres=True,
             #    lighting=True
-
 
     #
     # intrinsics
@@ -60,7 +61,6 @@ def main():
     view_angle = 180 / math.pi * (2.0 * math.atan2(h/2.0, f))
     p.camera.SetViewAngle(view_angle)
 
-
     #
     # extrinsics
     #
@@ -75,8 +75,7 @@ def main():
     p.camera.SetFocalPoint(0, 0, 1)
 
     # the camera Y axis points down
-    p.camera.SetViewUp(0,-1,0)
-
+    p.camera.SetViewUp(0, -1, 0)
 
     #
     # near/far plane
@@ -94,22 +93,63 @@ def main():
     p.store_image = True  # last_image and last_image_depth
     p.close()
 
-
-    # get screen image
-    # img = p.image
-    img = p.last_image
-
     # get depth
     # img = p.get_image_depth(fill_value=np.nan, reset_camera_clipping_range=False)
     img = p.last_image_depth
 
-    plt.figure()
-    plt.imshow(img)
-    plt.colorbar(label='Distance to Camera')
-    plt.title('Depth image')
-    plt.xlabel('X Pixel')
-    plt.ylabel('Y Pixel')
+    # remove NaN
+    # img[~(np.isnan(img))] = 0
+    img = - img
+
+    # plt.figure()
+    # plt.imshow(img)
+    # plt.colorbar(label='Distance to Camera')
+    # plt.title('Depth image')
+    # plt.xlabel('X Pixel')
+    # plt.ylabel('Y Pixel')
+    # plt.show()
+
+    #
+    # Open3D
+    #
+
+    pcd = open3d.io.read_point_cloud("fragment.ply")
+
+    # create window
+    window_visible = False
+    vis = VisOpen3D(width=w, height=h, visible=window_visible)
+
+    # point cloud
+    vis.add_geometry(pcd)
+
+    # update view
+    # vis.update_view_point(intrinsic, extrinsic)
+
+    # save view point to file
+    # vis.save_view_point("view_point.json")
+    vis.load_view_point("view_point.json")
+
+    intrinsic = vis.get_view_point_intrinsics()
+    extrinsic = vis.get_view_point_extrinsics()
+
+    # capture images
+    depth = vis.capture_depth_float_buffer(show=False)
+
+    depth_np = np.asarray(depth)
+    img_np = np.asarray(img)
+
+    # tests
+    print(depth_np[400, 400])
+    print(img_np[400, 400])
+    print(depth_np[652, 507])
+    print(img_np[652, 507])
+
+    diff = np.asarray(img) - np.asarray(depth)
+    plt.imshow(diff)
+
+    np.linalg.norm(diff)
     plt.show()
+
 
 
 if __name__ == "__main__":
