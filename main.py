@@ -28,7 +28,7 @@ def main():
 
 
     # renderer
-    p = pv.Plotter(off_screen=True)
+    p = pv.Plotter(off_screen=True, window_size=[w,h])
 
 
     #
@@ -50,6 +50,7 @@ def main():
     cx = intrinsic[0,2]
     cy = intrinsic[1,2]
     f = intrinsic[0,0]
+
 
     # convert the principal point to window center (normalized coordinate system) and set it
     wcx = -2*(cx - float(w)/2) / w
@@ -75,7 +76,7 @@ def main():
     p.camera.SetFocalPoint(0, 0, 1)
 
     # the camera Y axis points down
-    p.camera.SetViewUp(0,-1,0)
+    p.camera.SetViewUp(0, -1, 0)
 
 
     #
@@ -105,8 +106,6 @@ def main():
 
     plt.figure()
     plt.imshow(img)
-    plt.colorbar(label='Distance to Camera')
-    plt.title('Depth image')
     plt.xlabel('X Pixel')
     plt.ylabel('Y Pixel')
     plt.show()
