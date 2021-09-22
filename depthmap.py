@@ -3,8 +3,21 @@ import numpy as np
 from PIL import Image
 
 
-def write_compressed(filename, depth_data,
-                               max_depth_value=1000):
+def write(filename, depth_data):
+    # save png image (in millimetres)
+    depth_data = (depth_data * 1000).astype(np.uint16)
+    image = Image.new("I", depth_data.T.shape)
+    image.frombytes(depth_data.tobytes(), 'raw', "I;16")
+    image.save(filename)
+
+
+def read(filename):
+    # read png image (in millimetres)
+    depth_data = np.asarray(Image.open(filename))
+    return depth_data / 1000
+
+
+def write_compressed(filename, depth_data, max_depth_value=1000):
     """ Write d file in .png form, with clamping the maximum distance to max_depth_value.
 
     Parameters
