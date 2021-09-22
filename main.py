@@ -36,13 +36,10 @@ def main():
 
     # get depth map image and save to .png
     filename="test.png"
-    max_depth_value = 1000
-    img = v.capture_depth_image(filename,
-                                max_depth_value=max_depth_value)
+    img = v.capture_depth_image(filename)
 
     # read depth map image from .png
-    img2 = depthmap.read_compressed(filename,
-                                    max_depth_value=max_depth_value)
+    img2 = depthmap.read(filename)
 
     # %matplotlib qt
     # %matplotlib inline
