@@ -5,21 +5,22 @@ import pyvista as pv
 from pyvista.utilities import vtkmatrix_from_array, array_from_vtkmatrix
 import depthmap
 
+
 class Visualizer:
-    def __init__(self, width, height, off_screen=True):
+    def __init__(self, width=1920, height=1080, offscreen=False):
         self.width = width
         self.height = height
-        self.off_screen = off_screen
-        self.plotter = pv.Plotter(off_screen, window_size=[width, height])
+        self.offscreen = offscreen
+        self.plotter = pv.Plotter(offscreen, window_size=[width, height])
 
-        # if off screen, show has not been called and we must render
-        # before extracting an image
+        # If `offscreen`, then `show()` function has not been called yet, and we
+        # must call `render()` before extracting an image.
         if self.plotter._first_time:
             self.plotter._on_first_render_request()
             self.plotter.render()
 
     def show(self, **kwargs):
-        if not self.off_screen:
+        if not self.offscreen:
             self.plotter.store_image = True
 
             # non-blocking
@@ -47,34 +48,34 @@ class Visualizer:
         self.plotter.render()
 
     def update_view_point_intrinsics(self, intrinsics):
-        f  = intrinsics[0, 0]
+        f = intrinsics[0, 0]
         cx = intrinsics[0, 2]
         cy = intrinsics[1, 2]
 
         w = self.width
         h = self.height
 
-        # principal point to window center (normalized coordinate system)
+        # Principal point to window center (normalized coordinate system).
         wcx = -2.0 / w * cx + 1
-        wcy =  2.0 / h * cy - 1
+        wcy = 2.0 / h * cy - 1
         self.plotter.camera.SetWindowCenter(wcx, wcy)
 
-        # focal length to view angle
+        # Focal length to view angle.
         view_angle = 180 / math.pi * (2.0 * math.atan2(h / 2.0, f))
         self.plotter.camera.SetViewAngle(view_angle)
 
     def update_view_point_extrinsics(self, extrinsics):
-        # apply the transform to scene objects
+        # Apply the transform to scene objects.
         self.plotter.camera.SetModelTransformMatrix(
             vtkmatrix_from_array(extrinsics))
 
-        # camera can stay at the origin because we are transforming the scene objects
+        # Camera stays at the origin, we are transforming the scene objects.
         self.plotter.camera.SetPosition(0, 0, 0)
 
-        # look in the +Z direction of the camera coordinate system
+        # Look in the +Z direction of the camera coordinate system.
         self.plotter.camera.SetFocalPoint(0, 0, 1)
 
-        # the camera Y axis points down
+        # Y-axis points down.
         self.plotter.camera.SetViewUp(0, -1, 0)
 
     def get_view_point(self):
@@ -90,11 +91,11 @@ class Visualizer:
         w = self.width
         h = self.height
 
-        # focal length
+        # Focal length.
         view_angle = self.plotter.camera.GetViewAngle()
         f = (h / 2.0) / math.tan(view_angle * math.pi / 360.0)
 
-        # principal point
+        # Principal point.
         wcx, wcy = self.plotter.camera.GetWindowCenter()
         cx = w / 2.0 * (1 - wcx)
         cy = h / 2.0 * (1 + wcy)
@@ -124,11 +125,8 @@ class Visualizer:
                             fill_value=0,
                             reset_camera_clipping_range=True,
                             rtol=1.e-4,
-                            max_depth_value=1000):
-
-        # possible bug when `self.off_screen=True`
-        if self.off_screen:
-            self.show(auto_close=False, interactive_update=True)
+                            max_depth_value=1000,
+                            use_compression=False):
 
         zval = self.plotter.get_image_depth(fill_value,
                                             reset_camera_clipping_range)
@@ -140,14 +138,22 @@ class Visualizer:
 
         # values from `get_image_depth()` are negative to adhere to a
         # right-handed coordinate system. We need positive values.
-        depth = - zval
+        depth = -zval
 
         if filename is not None:
-            depthmap.write_compressed(filename, depth, max_depth_value)
+            if use_compression:
+                depthmap.write_compressed(filename, depth,
+                                          max_depth_value)  # slow
+            else:
+                depthmap.write(filename, depth)
 
         return depth
 
-    def ray_cast(self, x, y, intrinsic, extrinsic,
+    def ray_cast(self,
+                 x,
+                 y,
+                 intrinsic,
+                 extrinsic,
                  plot=False,
                  max_intersection_distance=1000):
         """ Get 3D measurement for the (x,y) pixel coordinate, using ray casting
@@ -177,28 +183,37 @@ class Visualizer:
         """
         point2D = np.array([x, y, 1])
 
-        R = extrinsic[0:3,0:3]
-        t = extrinsic[0:3,3]
-        cam_center = - R.T @ t
+        R = extrinsic[0:3, 0:3]
+        t = extrinsic[0:3, 3]
+        cam_center = -R.T @ t
         K_inv = np.linalg.inv(intrinsic)
 
         direction = R.T @ K_inv @ point2D
         direction = direction / np.linalg.norm(direction)
 
         start = cam_center
-        stop  = cam_center + max_intersection_distance * direction
+        stop = cam_center + max_intersection_distance * direction
 
-        # Perform ray casting
-        point3D_world, ind = self.plotter.mesh.ray_trace(
-            start, stop, first_point=True, plot=plot)
+        # Perform ray casting.
+        point3D_world, ind = self.plotter.mesh.ray_trace(start,
+                                                         stop,
+                                                         first_point=True,
+                                                         plot=plot)
 
-        # depth value: distance from camera center to computed 3D point
+        # Distance from camera center to computed 3D point.
         depth_value = np.linalg.norm(cam_center - point3D_world)
 
         return point3D_world, depth_value
 
-
-    def draw_camera(self, intrinsic, extrinsic, scale=0.1, color=None):
+    def draw_camera(self,
+                    intrinsic,
+                    extrinsic,
+                    width=None,
+                    height=None,
+                    scale=0.1,
+                    color=None,
+                    draw_camera_as_cone=False,
+                    opacity=1.0):
         """ Draw camera using triangles and lines.
 
         Parameters
@@ -207,26 +222,39 @@ class Visualizer:
             Calibration camera matrix.
         extrinsic : numpy.ndarray (3, 4) or (4, 4)
             Camera pose (from world to camera).
+        width : integer, optional
+            Image width.
+        height : integer, optional
+            Image height.
         scale : float, optional
             Resize to scale, by default 0.1.
+        draw_camera_as_cone : float, optional
+            Draw pyramid camera (as cone). Note: this might be very slow.
         color : list (3 values) or color name ("red"), optional
             Color of the image plane and pyramid lines, by default None.
+        opacity : float, optional
+            Planes transparency.
         """
-        # default color
+
+        w = width
+        if width is None:
+            cx = intrinsic[0, 2]
+            w = cx * 2 + 1
+
+        h = height
+        if height is None:
+            cy = intrinsic[1, 2]
+            h = cy * 2 + 1
+
         if color is None:
             color = [0.8, 0.2, 0.8]
 
-        w = self.width
-        h = self.height
-
-        K = intrinsic
-
-        # extrinsic: world to camera
+        # Extrinsic: world to camera.
         R = extrinsic[0:3, 0:3]
         t = extrinsic[0:3, 3]
-        center = - R.T @ t
+        center = -R.T @ t
 
-        # points in pixel
+        # Points in pixel.
         points_pixel = [
             [0, 0, 1],
             [w, 0, 1],
@@ -234,55 +262,72 @@ class Visualizer:
             [w, h, 1],
         ]
 
-        # pixel to camera coordinate system
+        # Pixel to camera coordinate system.
+        K = intrinsic
         Kinv = np.linalg.inv(K / scale)
         points_cam = [Kinv @ p for p in points_pixel]
 
-        # 3D points in world coordinate system
-        points_in_world = [(R.T @ p - R.T@t) for p in points_cam]
+        # 3D points in world coordinate system.
+        points_world = [(R.T @ p - R.T @ t) for p in points_cam]
 
-        # axes
+        # Plot axes.
         x_axis = R.T @ np.array([1., 0., 0.])
         y_axis = R.T @ np.array([0., 1., 0.])
         z_axis = R.T @ np.array([0., 0., 1.])
 
-        # draw axes
-        x_axis_line = pv.Line(center, center + scale/2.0*x_axis)
-        y_axis_line = pv.Line(center, center + scale/2.0*y_axis)
-        z_axis_line = pv.Line(center, center + scale/2.0*z_axis)
+        # Draw axes.
+        x_axis_line = pv.Line(center, center + scale / 2.0 * x_axis)
+        y_axis_line = pv.Line(center, center + scale / 2.0 * y_axis)
+        z_axis_line = pv.Line(center, center + scale / 2.0 * z_axis)
         self.plotter.add_mesh(x_axis_line, line_width=3, color="red")
         self.plotter.add_mesh(y_axis_line, line_width=3, color="green")
         self.plotter.add_mesh(z_axis_line, line_width=3, color="blue")
 
-        # display 3D points
-        # v.plotter.add_points(np.array(points_in_world))
+        if draw_camera_as_cone:
+            # Create camera plane using two triangles.
+            points = vtk.vtkPoints()
+            for p in points_world:
+                points.InsertNextPoint(p[0], p[1], p[2])
 
-        # create camera plane using two triangles
-        points = vtk.vtkPoints()
-        for p in points_in_world:
-            points.InsertNextPoint(p[0], p[1], p[2])
+            triangle01 = vtk.vtkTriangle()
+            triangle01.GetPointIds().SetId(0, 0)
+            triangle01.GetPointIds().SetId(1, 1)
+            triangle01.GetPointIds().SetId(2, 2)
 
-        triangle01 = vtk.vtkTriangle()
-        triangle01.GetPointIds().SetId(0, 0)
-        triangle01.GetPointIds().SetId(1, 1)
-        triangle01.GetPointIds().SetId(2, 2)
+            triangle02 = vtk.vtkTriangle()
+            triangle02.GetPointIds().SetId(0, 1)
+            triangle02.GetPointIds().SetId(1, 2)
+            triangle02.GetPointIds().SetId(2, 3)
 
-        triangle02 = vtk.vtkTriangle()
-        triangle02.GetPointIds().SetId(0, 1)
-        triangle02.GetPointIds().SetId(1, 2)
-        triangle02.GetPointIds().SetId(2, 3)
+            triangles = vtk.vtkCellArray()
+            triangles.InsertNextCell(triangle01)
+            triangles.InsertNextCell(triangle02)
 
-        triangles = vtk.vtkCellArray()
-        triangles.InsertNextCell(triangle01)
-        triangles.InsertNextCell(triangle02)
+            trianglePolyData = vtk.vtkPolyData()
+            trianglePolyData.SetPoints(points)
+            trianglePolyData.SetPolys(triangles)
 
-        trianglePolyData = vtk.vtkPolyData()
-        trianglePolyData.SetPoints(points)
-        trianglePolyData.SetPolys(triangles)
+            self.plotter.add_mesh(trianglePolyData,
+                                  color=color,
+                                  opacity=opacity)
 
-        self.plotter.add_mesh(trianglePolyData, color=color, opacity=0.65)
+            for p in points_world:
+                line = pv.Line(center, p)
+                self.plotter.add_mesh(line,
+                                      line_width=3,
+                                      color=color,
+                                      opacity=opacity)
 
-        # draw camera as a cone
-        for p in points_in_world:
-            line = pv.Line(center, p)
-            self.plotter.add_mesh(line, line_width=3, color=color, opacity=0.5)
+    def draw_points3D(self, color=None, radius=0.01):
+        """ Draw 3D points.
+
+        Parameters
+        ----------
+        color : list (3 values) or color name ("red"), optional
+            Color of the 3D point, by default None
+        radius : float, optional
+            Size of the 3D point, by default 0.01
+        """
+        self.plotter.add_points(np.array(points_world),
+                                color=color,
+                                line_width=radius)

@@ -20,7 +20,7 @@ def main():
                           [ 0.        ,  0.        ,  0.        ,  1.        ]])
 
 
-    v = Visualizer(w,h, off_screen=True)
+    v = Visualizer(w,h, offscreen=True)
     # v = Visualizer(w,h, off_screen=False)
     mesh = pv.read("fragment_mesh.ply")
     v.add_geometry(mesh)
